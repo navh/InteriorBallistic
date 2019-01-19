@@ -99,3 +99,6 @@ time step sec .0005
 print step sec .0005
 time to stop (if before projectile exit) sec .03
 area of the bore m^2 0.01924353091030859
+pressure from the igniter Pa 185186.68648525118
+volume of unburnt propellant m^3 0.007813585171984938
+initial chamber volume - covolume of ign m^3 0.01863742933186
