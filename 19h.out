@@ -1,0 +1,101 @@
+the input file is 19h.in
+the output file is 19h.out
+using lagrange pressure gradient
+m203 charge m30al propellant 19 perf hex 155 sys 198 cannon
+chamber volume in m^3 .018645
+groove diam in m .15748
+land diameter in m .15494
+groove/land ratio 1.66
+twist in turns/caliber .05
+travel in m 5.207
+gradient 1
+
+projectile mass in kg 43.545
+switch to calculate if energy lost to air resistance 0
+fraction of work against bore used to heat tube 0.0
+gas pressure in front of projectile pa .1e6
+
+number of barrel resistance points (br,trav) 7
+bore resistance Mpa     travel m
+ 1.7237							0.
+ 23.097							.01016
+ 34.129							.0254
+ 24.993							.03937
+ 22.408							.05207
+ 17.237							.1143
+ 10.342							5.08
+
+mass of recoiling parts kg1.e20
+number of recoil points (force,time) should be 2 2
+ 30000.							0.
+ 800000							.2
+
+free convective heat transfer coefficient w/m^2-k 11.35
+chamber wall thickness m .0000975
+heat capacity of steel chamber wall j/kg-k 460.28
+initial temperature of chamber wall k 293.
+heat loss coefficient (should be 1) 1.
+density of steel chamber wall kg/m^3 7861.2
+
+impetus of igniter j/kg 286950.
+covolume of igniter m^3/kg .0010838
+adiabatic flame temperature k 2000.
+mass of igniter kg .0069853
+ratio of specific heats for igniter 1.25
+
+number of propellants 3
+
+for propellant number 1
+impetus of the propellant j/kg 286950.
+adiabatic flame temperature of propellant k 2000.
+covolume of the propellant m^3/kg .0010838
+mass of propellant kg .13499
+density of propellant kg/m^3 1660.8
+ratio of specific heats of propellant 1.25
+number of perforations of propellant grain 0
+length of propellant grain m .0050292
+diameter of perforation of propellant grain m 0.
+outside diameter of propellant grain m .0024892
+for propellant number 2
+impetus of the propellant j/kg 1065300.
+adiabatic flame temperature of propellant k 3040.
+covolume of the propellant m^3/kg .0010296
+mass of propellant kg 11.861
+density of propellant kg/m^3 1583.3
+ratio of specific heats of propellant 1.243
+number of perforations of propellant grain 15
+length of propellant grain m .024082
+diameter of perforation of propellant grain m .0008585
+outside diameter of propellant grain m .015
+for propellant number 3
+impetus of the propellant j/kg 538030.
+adiabatic flame temperature of propellant k 1553.
+covolume of the propellant m^3/kg .0010838
+mass of propellant kg .22680
+density of propellant kg/m^3 941.12
+ratio of specific heats of propellant 1.25
+number of perforations of propellant grain 1
+length of propellant grain m .7112
+diameter of perforation of propellant grain m .03175
+outside diameter of propellant grain m .0381
+
+ 1 burning rate points for propellant 1
+
+exponent   coefficient  pressure
+  -         m/s-MPa^a      MPa
+ 0.		1.27		345.
+ 1 burning rate points for propellant 2
+
+exponent   coefficient  pressure
+  -         m/s-MPa^a      MPa
+ .701		.0033481		345.
+ 1 burning rate points for propellant 3
+
+exponent   coefficient  pressure
+  -         m/s-MPa^a      MPa
+ 0.		.762		345.
+
+time step sec .0005
+print step sec .0005
+time to stop (if before projectile exit) sec .03
+area of the bore m^2 0.01924353091030859
