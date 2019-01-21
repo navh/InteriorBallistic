@@ -3,8 +3,58 @@ from math import pi
 
 BarrelResistance = namedtuple('BarrelResistance', 'br trav')
 RecoilingPoint = namedtuple('RecoilingPoint', 'force time')
-Propellant = namedtuple('Propellant', 'impetus flameTemp covolume mass density ratioOfSpecificHeats perforations lengthOfGrain diameterOfPerforation outsideDiameter burningRateList')
+#Propellant = namedtuple('Propellant', 'impetus flameTemp covolume mass density ratioOfSpecificHeats perforations lengthOfGrain diameterOfPerforation outsideDiameter burningRateList surfaceArea')
 BurningRate = namedtuple('BurningRate', 'exponent coefficient pressure')
+
+
+class Propellant:
+    def __init__(self, imp, fla, cov,mass,dens,ratSpecHeat,perfs,lenGra,diaPerf,outDia):
+        self.impetus = float(imp)
+        self.flameTemp  = float(fla)
+        self.covolume = float(cov)
+        self.mass  = float(mass)
+        self.density  = float(dens)
+        self.ratioOfSpecificHeats = float(ratSpecHeat)
+        self.perforations = float(perfs)
+        self.lengthOfGrain  = float(lenGra)
+        self.diameterOfPerforation = float(diaPerf)
+        self.outsideDiameter = float(outDia)
+        self.burningRateList = []
+        self.surfaceArea = None
+        self.linearBurnRate = None
+        self.massFractionBurningRate = None
+        self.massFraction = None
+
+        self.computeInitialSurfaceArea()
+
+    def computeInitialSurfaceArea(self):
+        self.surfaceArea = pi * ((float(self.outsideDiameter) + float(self.perforations) * float(self.diameterOfPerforation)) * (
+            float(self.lengthOfGrain)) + ((float(self.outsideDiameter) ** 2 - (
+                float(self.perforations) * (float(self.diameterOfPerforation))) ** 2) / 2))
+
+    def computeSurfaceArea(self,time):
+        for br in self.burningRateList:  # TODO: Work out what to do when there are multiple BRs, for now assume there will only be one
+            ui = 2 * float(br.linear_burning_rate) * time # Big guess for ui
+            self.surfaceArea = pi * ((float(self.outsideDiameter) - ui + float(self.perforations) * (
+                        float(self.diameterOfPerforation) + ui)) * ((float(self.lengthOfGrain) - ui)) + (((float(
+                self.outsideDiameter) - ui) ** 2 - (float(self.perforations) * (
+                        (float(self.diameterOfPerforation) + ui) ** 2))) / 2))
+
+    def computeMassFraction(self,time):
+        for br in self.burningRateList:
+            ui = 2 * float(br.linear_burning_rate) * time  # Big guess for ui
+            vgi = (pi / 4) * (float(self.outsideDiameter) ** 2 - (float(self.perforations) * (float(self.diameterOfPerforation) ** 2))) * self.lengthOfGrain #Initial volume using geometry instead of density and mass
+            volumeOfPartiallyBurntPropellant = (pi / 4) * (((self.outsideDiameter - ui)**2 - (self.perforations * (self.diameterOfPerforation + ui)**2)) * (self.lengthOfGrain - ui))
+            self.massFraction = (1 - (volumeOfPartiallyBurntPropellant / vgi))
+            self.massFractionBurningRate = 1 / (vgi * self.surfaceArea * self.linearBurnRate)
+
+
+
+    def computeBurningRate(self):
+        linear_burning_rate = 0
+        for br in self.burningRateList:
+            br.linear_burning_rate += ((float(br.coefficient) * float(br.pressure)) ** float(br.exponent))  # TODO: Check to see if summing these makes sense, we did to see if our example with only 1 burn rate / propellant would work
+
 
 class main:
     def __init__(self,fn):
@@ -20,8 +70,8 @@ class main:
         self.f.close()
 
     def run(self):
-        time = 0
-        while(time <= float(self.time_to_stop)): #Make it end when the time ends
+        self.t = 0
+        while(self.t <= float(self.time_to_stop)): #Make it end when the time ends
             if not ('Have individual propellants burned out?'):
                 self.computeLinearBurningRates()
                 self.computePropellantSurfaceAreas()
@@ -45,13 +95,18 @@ class main:
                 self.interpolateForConditionsAtMuzzle()
                 self.writeConditionsAtMaximumPressureAndAtMuzzle()
                 break
-            time += float(self.time_step_sec)
+            self.t += float(self.time_step_sec)
 
         #TODO: page 02, pressure from the igniter Pa 185186.7
 
     def computeStoreConstantGroupings(self):
         self.calculateAreaOfTheBore()
         self.computeStapceMeanPressureAtTime0()
+        self.initialPropellantSurfaceArea()
+
+    def initialPropellantSurfaceArea(self):
+        for p in self.propellants:
+            pass #TODO: Call the surface area method on the propellant
 
     def computeStapceMeanPressureAtTime0(self):
         # Pressure from the igniter, equation 42
@@ -66,18 +121,16 @@ class main:
 
     def computeLinearBurningRates(self):
         # Using formula 32 (general case of formula 30)
-        self.linear_burning_rates = []
         for propellant in self.propellants:
-            linear_burning_rate = 0
-            for br in propellant.burningRateList:
-                pass
-        pass
+            propellant.computeBurningRate()
 
     def computePropellantSurfaceAreas(self):
-        pass
+        for p in self.propellants:
+            p.computeSurfaceArea(self.t)
 
     def computeMassFractionsBurnedByIntegration(self):
-        pass
+        for p in self.propellants:
+            p.computeMassFraction(self.t)
 
     def computeBreechPressure(self):
         pass
@@ -120,6 +173,17 @@ class main:
 
     def readNextCaseOrStopProgram(self):
         pass
+
+    def retardingPressureByMeter(self,travelInMeters):
+        pressure = None
+        distance = -1
+        for barrelResistancePoint in self.barrel_resistance_points:
+            if float(barrelResistancePoint.trav) < travelInMeters:
+                if float(barrelResistancePoint.trav) > float(distance):
+                    distance = float(barrelResistancePoint.trav)
+                    pressure = float(barrelResistancePoint.br)
+        return pressure
+
 
     def calculateAreaOfTheBore(self):
         grooveRadius = float(self.groove_diam) / 2
@@ -186,7 +250,7 @@ class main:
         self.propellants = []
         for _ in range(int(self.number_of_propellants)):
             line = f.readline().split()
-            self.propellants.append(Propellant(line[0],line[1],line[2],line[3],line[4],line[5],line[6],line[7],line[8],line[9],[]))
+            self.propellants.append(Propellant(line[0],line[1],line[2],line[3],line[4],line[5],line[6],line[7],line[8],line[9]))
 
         for propellant in self.propellants:
             numberOfBurningRates = int(f.readline())
