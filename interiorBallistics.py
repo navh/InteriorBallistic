@@ -1,9 +1,9 @@
 from collections import namedtuple
 from math import pi
+from scipy.constants import g as gravity
 
 BarrelResistance = namedtuple('BarrelResistance', 'br trav')
 RecoilingPoint = namedtuple('RecoilingPoint', 'force time')
-#Propellant = namedtuple('Propellant', 'impetus flameTemp covolume mass density ratioOfSpecificHeats perforations lengthOfGrain diameterOfPerforation outsideDiameter burningRateList surfaceArea')
 BurningRate = namedtuple('BurningRate', 'exponent coefficient pressure')
 
 
@@ -12,7 +12,7 @@ class Propellant:
         self.impetus = float(imp)
         self.flameTemp  = float(fla)
         self.covolume = float(cov)
-        self.mass  = float(mass)
+        self.mass = float(mass)
         self.density  = float(dens)
         self.ratioOfSpecificHeats = float(ratSpecHeat)
         self.perforations = float(perfs)
@@ -25,36 +25,35 @@ class Propellant:
         self.massFractionBurningRate = None
         self.massFraction = None
 
+    def initializePropellant(self):
+        self.computeBurningRate()
         self.computeInitialSurfaceArea()
+        self.computeMassFraction(0)
+
 
     def computeInitialSurfaceArea(self):
-        self.surfaceArea = pi * ((float(self.outsideDiameter) + float(self.perforations) * float(self.diameterOfPerforation)) * (
-            float(self.lengthOfGrain)) + ((float(self.outsideDiameter) ** 2 - (
-                float(self.perforations) * (float(self.diameterOfPerforation))) ** 2) / 2))
+        self.surfaceArea = pi * (((self.outsideDiameter) + (self.perforations) * (self.diameterOfPerforation)) * (
+            (self.lengthOfGrain)) + (((self.outsideDiameter) ** 2 - (
+                (self.perforations) * ((self.diameterOfPerforation))) ** 2) / 2))
 
     def computeSurfaceArea(self,time):
-        for br in self.burningRateList:  # TODO: Work out what to do when there are multiple BRs, for now assume there will only be one
-            ui = 2 * float(br.linear_burning_rate) * time # Big guess for ui
-            self.surfaceArea = pi * ((float(self.outsideDiameter) - ui + float(self.perforations) * (
-                        float(self.diameterOfPerforation) + ui)) * ((float(self.lengthOfGrain) - ui)) + (((float(
-                self.outsideDiameter) - ui) ** 2 - (float(self.perforations) * (
-                        (float(self.diameterOfPerforation) + ui) ** 2))) / 2))
+        ui = 2 * (self.linearBurnRate) * time # Big guess for ui
+        self.surfaceArea = pi * (((self.outsideDiameter) - ui + (self.perforations) * (
+                    (self.diameterOfPerforation) + ui)) * (((self.lengthOfGrain) - ui)) + ((((
+            self.outsideDiameter) - ui) ** 2 - ((self.perforations) * (
+                    ((self.diameterOfPerforation) + ui) ** 2))) / 2))
 
     def computeMassFraction(self,time):
-        for br in self.burningRateList:
-            ui = 2 * float(br.linear_burning_rate) * time  # Big guess for ui
-            vgi = (pi / 4) * (float(self.outsideDiameter) ** 2 - (float(self.perforations) * (float(self.diameterOfPerforation) ** 2))) * self.lengthOfGrain #Initial volume using geometry instead of density and mass
-            volumeOfPartiallyBurntPropellant = (pi / 4) * (((self.outsideDiameter - ui)**2 - (self.perforations * (self.diameterOfPerforation + ui)**2)) * (self.lengthOfGrain - ui))
-            self.massFraction = (1 - (volumeOfPartiallyBurntPropellant / vgi))
-            self.massFractionBurningRate = 1 / (vgi * self.surfaceArea * self.linearBurnRate)
-
-
+        ui = 2 * (self.linearBurnRate) * time  # Big guess for ui
+        vgi = (pi / 4) * ((self.outsideDiameter) ** 2 - ((self.perforations) * ((self.diameterOfPerforation) ** 2))) * self.lengthOfGrain #Initial volume using geometry instead of density and mass
+        volumeOfPartiallyBurntPropellant = (pi / 4) * (((self.outsideDiameter - ui)**2 - (self.perforations * (self.diameterOfPerforation + ui)**2)) * (self.lengthOfGrain - ui))
+        self.massFraction = (1 - (volumeOfPartiallyBurntPropellant / vgi))
+        self.massFractionBurningRate = 1 / (vgi * self.surfaceArea * self.linearBurnRate)
 
     def computeBurningRate(self):
-        linear_burning_rate = 0
+        self.linearBurnRate = 0
         for br in self.burningRateList:
-            br.linear_burning_rate += ((float(br.coefficient) * float(br.pressure)) ** float(br.exponent))  # TODO: Check to see if summing these makes sense, we did to see if our example with only 1 burn rate / propellant would work
-
+            self.linearBurnRate += (((br.coefficient) * (br.pressure)) ** (br.exponent))  # TODO: Check to see if summing these makes sense, we did to see if our example with only 1 burn rate / propellant would work
 
 class main:
     def __init__(self,fn):
@@ -66,17 +65,15 @@ class main:
         self.printOutIdentifyingData()
         self.computeStoreConstantGroupings()
         self.run()
-
         self.f.close()
 
     def run(self):
-        self.t = 0
-        while(self.t <= float(self.time_to_stop)): #Make it end when the time ends
+        while(self.t <= (self.time_to_stop)):
             if not ('Have individual propellants burned out?'):
                 self.computeLinearBurningRates()
                 self.computePropellantSurfaceAreas()
                 self.computeMassFractionsBurnedByIntegration()
-            if ('spacemeanpressure exceeded shot start pressure'):
+            if (self.space_mean_pressure > self.retardingPressureByMeter(0)):
                 self.computeBreechPressure()
                 self.computeBasePressure()
                 self.interpolateForResistivePressure()
@@ -95,26 +92,33 @@ class main:
                 self.interpolateForConditionsAtMuzzle()
                 self.writeConditionsAtMaximumPressureAndAtMuzzle()
                 break
-            self.t += float(self.time_step_sec)
-
-        #TODO: page 02, pressure from the igniter Pa 185186.7
+            self.t += self.time_step_sec
 
     def computeStoreConstantGroupings(self):
+        self.t = self.time_step_sec
         self.calculateAreaOfTheBore()
         self.computeStapceMeanPressureAtTime0()
-        self.initialPropellantSurfaceArea()
+        for p in self.propellants:
+            p.initializePropellant()
+        self.velocity_of_projectile = 0.0
+        self.acceleration_of_projectile = 0.0
+        self.displacement_of_projectile = 0.0
+        self.f.write('  time           acc            vel            dis            mpress        pbase           pbrch\n')
+        self.f.write('   s              m/s^2          m/s            m              Pa            Pa              Pa \n')
+
 
     def initialPropellantSurfaceArea(self):
         for p in self.propellants:
-            pass #TODO: Call the surface area method on the propellant
+            p.computeSurfaceArea(0) #TODO: Make sure that this is the correct way to do this
 
     def computeStapceMeanPressureAtTime0(self):
         # Pressure from the igniter, equation 42
         self.volume_of_unburnt_propellant = 0
         for propellant in self.propellants:
-            self.volume_of_unburnt_propellant += (float(propellant.mass) / float(propellant.density))
-        initial_volume = float(self.chamber_volume) - (float(self.covolume_of_igniter) * float(self.mass_of_igniter))
-        self.igniter_pressure = float(self.impetus_of_igniter) * float(self.mass_of_igniter) / (initial_volume - float(self.volume_of_unburnt_propellant))
+            self.volume_of_unburnt_propellant += ((propellant.mass) / (propellant.density))
+        initial_volume = (self.chamber_volume) - ((self.covolume_of_igniter) * (self.mass_of_igniter))
+        self.igniter_pressure = (self.impetus_of_igniter) * (self.mass_of_igniter) / (initial_volume - (self.volume_of_unburnt_propellant))
+        self.space_mean_pressure = self.igniter_pressure
         self.f.write('pressure from the igniter Pa ' + str(self.igniter_pressure) + '\n')
         self.f.write('volume of unburnt propellant m^3 ' + str(self.volume_of_unburnt_propellant)+ '\n')
         self.f.write('initial chamber volume - covolume of ign m^3 ' + str(initial_volume) + '\n')
@@ -133,7 +137,9 @@ class main:
             p.computeMassFraction(self.t)
 
     def computeBreechPressure(self):
-        pass
+        self.breech_pressure = 0
+        for p in self.propellants:
+            pass
 
     def computeBasePressure(self):
         pass
@@ -148,22 +154,67 @@ class main:
         pass
 
     def computeProjectileDisplacementByIntegration(self):
-        pass
+        self.displacement_of_projectile = self.displacement_of_projectile
 
     def computeVolumeAvailableForPropellantGas(self):
-        pass
+        volume_occupied_by_unburned_solid_propellant = 0
+        volume_occupied_by_gas_molecules = 0
+        for p in self.propellants:
+            volume_occupied_by_unburned_solid_propellant += (p.mass / p.density) * (1 - p.massFraction)
+            volume_occupied_by_gas_molecules += (p.mass * p.massFraction * p.covolume)
+        self.volume_available_for_propellant_gas = self.chamber_volume + self.boreArea * self.displacement_of_projectile - volume_occupied_by_gas_molecules - volume_occupied_by_unburned_solid_propellant
 
     def computeTemperatureOfPropellantGas(self):
-        pass
+        """
+        From Equation (19)
+
+        Our documentation provides a very long formula. For readability it has been broken down into 7 sub-formulae A-G
+
+        :return:
+        """
+        A = 0
+        for p in self.propellants:
+            A += (p.impetus * p.mass * p.massFraction) / (p.ratioOfSpecificHeats - 1)
+
+        B = (self.impetus_of_igniter * self.mass_of_igniter)/ (self.ratio_of_specific_heats_for_igniter - 1)
+
+        CSum = 0
+        for p in self.propellants:
+            CSum = p.mass
+        pidduckKentConstant = 1 #TODO: Actually define this constant
+        C = (self.velocity_of_projectile ** 2 / (gravity * 2)) * (self.projectile_mass + CSum / pidduckKentConstant)
+
+        D = - self.boreArea * self.retardingPressureByMeter(self.displacement_of_projectile) * self.displacement_of_projectile #TODO: We used a random integral here and are just guessing that there is no need to evaluate it
+
+        E = 0 #TODO: Heat is usually insignificant, the formula for its calculation is complex (formula 17), it may be added later
+
+        F = 0
+        for p in self.propellants:
+            F += (p.impetus * p.mass * p.massFraction) / ((p.ratioOfSpecificHeats - 1) * p.flameTemp)
+
+        G = (self.impetus_of_igniter * self.mass_of_igniter) / ((self.ratio_of_specific_heats_for_igniter - 1) * self.adiabatic_flame_temperature)
+
+        self.temperature_of_propellant_gas = (A + B - C - D - E) / (F + G)
 
     def computeSpaceMeanPressure(self):
-        pass
+        """
+        Equation 26
+        :return:
+        """
+
+        A = 0
+        for p in self.propellants:
+            A += (p.impetus * p.mass * p.massFraction) / (p.flameTemp)
+
+        B = self.impetus_of_igniter * self.mass_of_igniter / self.adiabatic_flame_temperature
+
+        self.space_mean_pressure = (self.temperature_of_propellant_gas / self.volume_available_for_propellant_gas) * (A + B)
 
     def checkForAndStoreMaxPressureAndAssociatedConditions(self):
-        pass
+        pass #TODO: Instructions unclear, pass intentionally left in place
 
     def writeOutComputedResults(self):
-        pass
+        self.f.write("%08.8E %08.8E %08.8E %08.8E %08.8E %08.8E %08.8E \n" % (self.t, self.acceleration_of_projectile, self.velocity_of_projectile, self.displacement_of_projectile, self.space_mean_pressure,self.space_mean_pressure,self.space_mean_pressure))
 
     def interpolateForConditionsAtMuzzle(self):
         pass
@@ -178,20 +229,20 @@ class main:
         pressure = None
         distance = -1
         for barrelResistancePoint in self.barrel_resistance_points:
-            if float(barrelResistancePoint.trav) < travelInMeters:
-                if float(barrelResistancePoint.trav) > float(distance):
-                    distance = float(barrelResistancePoint.trav)
-                    pressure = float(barrelResistancePoint.br)
+            if (barrelResistancePoint.trav) <= travelInMeters:
+                if (barrelResistancePoint.trav) > (distance):
+                    distance = (barrelResistancePoint.trav)
+                    pressure = (barrelResistancePoint.br)
         return pressure
 
 
     def calculateAreaOfTheBore(self):
-        grooveRadius = float(self.groove_diam) / 2
-        landRadius = float(self.land_diameter) / 2
+        grooveRadius = (self.groove_diam) / 2
+        landRadius = (self.land_diameter) / 2
         grooveArea = pi * grooveRadius * grooveRadius
         landArea = pi * landRadius * landRadius
-        sumOfRatio = (1 + float(self.groove_land_ratio))
-        self.boreArea = ((grooveArea * float(self.groove_land_ratio)) + landArea) / sumOfRatio
+        sumOfRatio = (1 + (self.groove_land_ratio))
+        self.boreArea = ((grooveArea * (self.groove_land_ratio)) + landArea) / sumOfRatio
         self.f.write('area of the bore m^2 ' + str(self.boreArea) + '\n')
 
     def readInAllData(self):
@@ -199,53 +250,53 @@ class main:
         self.title = f.readline().replace('"', '')
 
         line = f.readline().split()
-        self.chamber_volume = line[0]
-        self.groove_diam = line[1]
-        self.land_diameter = line[2]
-        self.groove_land_ratio = line[3]
-        self.twist_in_turns_caliber = line[4]
-        self.travel = line[5]
-        self.gradient = line[6]
+        self.chamber_volume = float(line[0])
+        self.groove_diam = float(line[1])
+        self.land_diameter = float(line[2])
+        self.groove_land_ratio = float(line[3])
+        self.twist_in_turns_caliber = float(line[4])
+        self.travel = float(line[5])
+        self.gradient = float(line[6])
 
         line = f.readline().split()
-        self.projectile_mass = line[0]
-        self.switch_to_calculate_energy_lost_to_air_resistance = line[1]
-        self.fraction_of_work_against_bore_to_heat_tube = line[2]
-        self.gas_pressure_in_front_of_projectile = line[3]
+        self.projectile_mass = float(line[0])
+        self.switch_to_calculate_energy_lost_to_air_resistance = float(line[1])
+        self.fraction_of_work_against_bore_to_heat_tube = float(line[2])
+        self.gas_pressure_in_front_of_projectile = float(line[3])
 
         line = f.readline().split()
-        self.number_of_barrel_resistance_points = line[0]
+        self.number_of_barrel_resistance_points = float(line[0])
         self.barrel_resistance_points = []
         for _ in range(int(self.number_of_barrel_resistance_points)):
             line = f.readline().split()
-            self.barrel_resistance_points.append(BarrelResistance(line[0],line[1]))
+            self.barrel_resistance_points.append(BarrelResistance(float(line[0]),float(line[1])))
 
         line = f.readline().split()
-        self.mass_of_recoiling_parts = line[0]
-        self.number_of_recoiling_parts = line[1]
+        self.mass_of_recoiling_parts = float(line[0])
+        self.number_of_recoiling_parts = float(line[1])
 
         self.recoiling_parts = []
         for _ in range(int(self.number_of_recoiling_parts)):
             line = f.readline().split()
-            self.recoiling_parts.append(RecoilingPoint(line[0],line[1]))
+            self.recoiling_parts.append(RecoilingPoint(float(line[0]),float(line[1])))
 
         line = f.readline().split()
-        self.free_convective_heat_transfer_coefficient = line[0]
-        self.chamber_wall_thickness = line[1]
-        self.heat_capacity_of_steel_chamber_wall = line[2]
-        self.initial_temperature_of_chamber_wall = line[3]
-        self.heat_loss_coefficient = line[4]
-        self.density_of_steel_chamber_wall = line[5]
+        self.free_convective_heat_transfer_coefficient = float(line[0])
+        self.chamber_wall_thickness = float(line[1])
+        self.heat_capacity_of_steel_chamber_wall = float(line[2])
+        self.initial_temperature_of_chamber_wall = float(line[3])
+        self.heat_loss_coefficient = float(line[4])
+        self.density_of_steel_chamber_wall = float(line[5])
 
         line = f.readline().split()
-        self.impetus_of_igniter = line[0]
-        self.covolume_of_igniter = line[1]
-        self.adiabatic_flame_temperature = line[2]
-        self.mass_of_igniter = line[3]
-        self.ratio_of_specific_heats_for_igniter = line[4]
+        self.impetus_of_igniter = float(line[0])
+        self.covolume_of_igniter = float(line[1])
+        self.adiabatic_flame_temperature = float(line[2])
+        self.mass_of_igniter = float(line[3])
+        self.ratio_of_specific_heats_for_igniter = float(line[4])
 
         line = f.readline().split()
-        self.number_of_propellants = line[0]
+        self.number_of_propellants = float(line[0])
 
         self.propellants = []
         for _ in range(int(self.number_of_propellants)):
@@ -256,72 +307,72 @@ class main:
             numberOfBurningRates = int(f.readline())
             for _ in range(numberOfBurningRates):
                 line = f.readline().split()
-                propellant.burningRateList.append(BurningRate(line[0],line[1],line[2]))
+                propellant.burningRateList.append(BurningRate(float(line[0]),float(line[1]),float(line[2])))
 
         line = f.readline().split()
-        self.time_step_sec = line[0]
-        self.print_step_sec = line[1]
-        self.time_to_stop = line[2]
+        self.time_step_sec = float(line[0])
+        self.print_step_sec = float(line[1])
+        self.time_to_stop = float(line[2])
 
         f.close()
 
     def printOutIdentifyingData(self):
-        self.f.write('the input file is ' + self.fileName + '.in' + '\n')
-        self.f.write('the output file is ' + self.fileName + '.out' + '\n')
+        self.f.write('the input file is ' + str(self.fileName) + '.in' + '\n')
+        self.f.write('the output file is ' + str(self.fileName) + '.out' + '\n')
         self.f.write('using lagrange pressure gradient' + '\n')
         self.f.write(self.title)
-        self.f.write('chamber volume in m^3 ' + self.chamber_volume + '\n')
-        self.f.write('groove diam in m ' + self.groove_diam + '\n')
-        self.f.write('land diameter in m ' + self.land_diameter + '\n')
-        self.f.write('groove/land ratio ' + self.groove_land_ratio + '\n')
-        self.f.write('twist in turns/caliber ' + self.twist_in_turns_caliber + '\n')
-        self.f.write('travel in m ' + self.travel + '\n')
-        self.f.write('gradient ' + self.gradient + '\n')
+        self.f.write('chamber volume in m^3 ' + str(self.chamber_volume) + '\n')
+        self.f.write('groove diam in m ' + str(self.groove_diam) + '\n')
+        self.f.write('land diameter in m ' + str(self.land_diameter) + '\n')
+        self.f.write('groove/land ratio ' + str(self.groove_land_ratio) + '\n')
+        self.f.write('twist in turns/caliber ' + str(self.twist_in_turns_caliber) + '\n')
+        self.f.write('travel in m ' + str(self.travel) + '\n')
+        self.f.write('gradient ' + str(self.gradient) + '\n')
         self.f.write('' + '\n')
-        self.f.write('projectile mass in kg ' + self.projectile_mass + '\n')
-        self.f.write('switch to calculate if energy lost to air resistance ' + self.switch_to_calculate_energy_lost_to_air_resistance + '\n')
-        self.f.write('fraction of work against bore used to heat tube ' + self.fraction_of_work_against_bore_to_heat_tube + '\n')
-        self.f.write('gas pressure in front of projectile pa ' + self.gas_pressure_in_front_of_projectile + '\n')
+        self.f.write('projectile mass in kg ' + str(self.projectile_mass) + '\n')
+        self.f.write('switch to calculate if energy lost to air resistance ' + str(self.switch_to_calculate_energy_lost_to_air_resistance) + '\n')
+        self.f.write('fraction of work against bore used to heat tube ' + str(self.fraction_of_work_against_bore_to_heat_tube) + '\n')
+        self.f.write('gas pressure in front of projectile pa ' + str(self.gas_pressure_in_front_of_projectile) + '\n')
         self.f.write('' + '\n')
-        self.f.write('number of barrel resistance points (br,trav) ' + self.number_of_barrel_resistance_points + '\n')
+        self.f.write('number of barrel resistance points (br,trav) ' + str(self.number_of_barrel_resistance_points) + '\n')
         self.f.write('bore resistance Mpa     travel m' + '\n')
         for resistancePoint in self.barrel_resistance_points:
-            self.f.write(' ' + resistancePoint.br + '\t\t\t\t\t\t\t' + resistancePoint.trav + '\n')
+            self.f.write(' ' + str(resistancePoint.br) + '\t\t\t\t\t\t\t' + str(resistancePoint.trav) + '\n')
         self.f.write('' + '\n')
-        self.f.write('mass of recoiling parts kg' + self.mass_of_recoiling_parts + '\n')
-        self.f.write('number of recoil points (force,time) should be 2 ' + self.number_of_recoiling_parts + '\n')
+        self.f.write('mass of recoiling parts kg' + str(self.mass_of_recoiling_parts) + '\n')
+        self.f.write('number of recoil points (force,time) should be 2 ' + str(self.number_of_recoiling_parts) + '\n')
         for part in self.recoiling_parts:
-            self.f.write(' ' + part.force + '\t\t\t\t\t\t\t' + part.time + '\n')
+            self.f.write(' ' + str(part.force) + '\t\t\t\t\t\t\t' + str(part.time) + '\n')
         self.f.write('' + '\n')
-        self.f.write('free convective heat transfer coefficient w/m^2-k ' + self.free_convective_heat_transfer_coefficient + '\n')
-        self.f.write('chamber wall thickness m ' + self.chamber_wall_thickness + '\n')
-        self.f.write('heat capacity of steel chamber wall j/kg-k ' + self.heat_capacity_of_steel_chamber_wall + '\n')
-        self.f.write('initial temperature of chamber wall k ' + self.initial_temperature_of_chamber_wall + '\n')
-        self.f.write('heat loss coefficient (should be 1) ' + self.heat_loss_coefficient + '\n')
-        self.f.write('density of steel chamber wall kg/m^3 ' + self.density_of_steel_chamber_wall + '\n')
+        self.f.write('free convective heat transfer coefficient w/m^2-k ' + str(self.free_convective_heat_transfer_coefficient) + '\n')
+        self.f.write('chamber wall thickness m ' + str(self.chamber_wall_thickness) + '\n')
+        self.f.write('heat capacity of steel chamber wall j/kg-k ' + str(self.heat_capacity_of_steel_chamber_wall) + '\n')
+        self.f.write('initial temperature of chamber wall k ' + str(self.initial_temperature_of_chamber_wall) + '\n')
+        self.f.write('heat loss coefficient (should be 1) ' + str(self.heat_loss_coefficient) + '\n')
+        self.f.write('density of steel chamber wall kg/m^3 ' + str(self.density_of_steel_chamber_wall) + '\n')
         self.f.write('' + '\n')
-        self.f.write('impetus of igniter j/kg ' + self.impetus_of_igniter + '\n')
-        self.f.write('covolume of igniter m^3/kg ' + self.covolume_of_igniter + '\n')
-        self.f.write('adiabatic flame temperature k ' + self.adiabatic_flame_temperature + '\n')
-        self.f.write('mass of igniter kg ' + self.mass_of_igniter + '\n')
-        self.f.write('ratio of specific heats for igniter ' + self.ratio_of_specific_heats_for_igniter + '\n')
+        self.f.write('impetus of igniter j/kg ' + str(self.impetus_of_igniter) + '\n')
+        self.f.write('covolume of igniter m^3/kg ' + str(self.covolume_of_igniter) + '\n')
+        self.f.write('adiabatic flame temperature k ' + str(self.adiabatic_flame_temperature) + '\n')
+        self.f.write('mass of igniter kg ' + str(self.mass_of_igniter) + '\n')
+        self.f.write('ratio of specific heats for igniter ' + str(self.ratio_of_specific_heats_for_igniter) + '\n')
         self.f.write('' + '\n')
-        self.f.write('number of propellants ' + self.number_of_propellants + '\n')
+        self.f.write('number of propellants ' + str(self.number_of_propellants) + '\n')
         self.f.write('' + '\n')
         i = 0
         for propellant in self.propellants:
             i += 1
             self.f.write('for propellant number ' + str(i) + '\n')
-            self.f.write('impetus of the propellant j/kg ' + propellant.impetus + '\n')
-            self.f.write('adiabatic flame temperature of propellant k ' + propellant.flameTemp + '\n')
-            self.f.write('covolume of the propellant m^3/kg ' + propellant.covolume + '\n')
-            self.f.write('mass of propellant kg ' + propellant.mass + '\n')
-            self.f.write('density of propellant kg/m^3 ' + propellant.density + '\n')
-            self.f.write('ratio of specific heats of propellant ' + propellant.ratioOfSpecificHeats + '\n')
-            self.f.write('number of perforations of propellant grain ' + propellant.perforations + '\n')
-            self.f.write('length of propellant grain m ' + propellant.lengthOfGrain + '\n')
-            self.f.write('diameter of perforation of propellant grain m ' + propellant.diameterOfPerforation + '\n')
-            self.f.write('outside diameter of propellant grain m ' + propellant.outsideDiameter + '\n')
+            self.f.write('impetus of the propellant j/kg ' + str(propellant.impetus) + '\n')
+            self.f.write('adiabatic flame temperature of propellant k ' + str(propellant.flameTemp) + '\n')
+            self.f.write('covolume of the propellant m^3/kg ' + str(propellant.covolume) + '\n')
+            self.f.write('mass of propellant kg ' + str(propellant.mass) + '\n')
+            self.f.write('density of propellant kg/m^3 ' + str(propellant.density) + '\n')
+            self.f.write('ratio of specific heats of propellant ' + str(propellant.ratioOfSpecificHeats) + '\n')
+            self.f.write('number of perforations of propellant grain ' + str(propellant.perforations) + '\n')
+            self.f.write('length of propellant grain m ' + str(propellant.lengthOfGrain) + '\n')
+            self.f.write('diameter of perforation of propellant grain m ' + str(propellant.diameterOfPerforation) + '\n')
+            self.f.write('outside diameter of propellant grain m ' + str(propellant.outsideDiameter) + '\n')
         self.f.write('' + '\n')
         i = 0
         for propellant in self.propellants:
@@ -331,11 +382,11 @@ class main:
             self.f.write('exponent   coefficient  pressure' + '\n')
             self.f.write('  -         m/s-MPa^a      MPa' + '\n')
             for burnRate in propellant.burningRateList:
-                self.f.write(' ' + burnRate.exponent + '\t\t'+ burnRate.coefficient + '\t\t' + burnRate.pressure + '\n')
+                self.f.write(' ' + str(burnRate.exponent) + '\t\t'+ str(burnRate.coefficient) + '\t\t' + str(burnRate.pressure) + '\n')
         self.f.write('' + '\n')
-        self.f.write('time step sec ' + self.time_step_sec + '\n')
-        self.f.write('print step sec ' + self.print_step_sec + '\n')
-        self.f.write('time to stop (if before projectile exit) sec ' + self.time_to_stop + '\n')
+        self.f.write('time step sec ' + str(self.time_step_sec) + '\n')
+        self.f.write('print step sec ' + str(self.print_step_sec) + '\n')
+        self.f.write('time to stop (if before projectile exit) sec ' + str(self.time_to_stop) + '\n')
 
 if __name__ == '__main__':
     main('19h')
