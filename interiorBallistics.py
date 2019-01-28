@@ -102,9 +102,11 @@ class main:
         self.computeStapceMeanPressureAtTime0()
         for p in self.propellants:
             p.initializePropellant()
-        self.velocity_of_projectile = 0.0
-        self.acceleration_of_projectile = 0.0
-        self.displacement_of_projectile = 0.0
+        self.velocity_of_projectile = 0
+        self.acceleration_of_projectile = 0
+        self.displacement_of_projectile = 0
+        self.previous_displacement_of_projectile = 0
+        self.retardingLosses = 0
         self.f.write('  time           acc            vel            dis            mpress         pbase          pbrch\n')
         self.f.write('   s              m/s^2          m/s            m              Pa             Pa             Pa \n')
 
@@ -208,7 +210,8 @@ class main:
             CSum = p.mass
         C = (self.velocity_of_projectile ** 2 / (gravity * 2)) * (self.projectile_mass + CSum / PIDDUCK_KENT_CONSTANT)
 
-        D = - self.boreArea * self.retardingPressureByMeter(self.displacement_of_projectile) * self.displacement_of_projectile #TODO: We used a random integral here and are just guessing that there is no need to evaluate it
+        self.retardingLosses += (self.boreArea * self.retardingPressureByMeter(self.displacement_of_projectile) * self.displacement_of_projectile) - (self.boreArea * self.retardingPressureByMeter(self.displacement_of_projectile) * self.previous_displacement_of_projectile)
+        self.previous_displacement_of_projectile = self.displacement_of_projectile
 
         E = 0 #TODO: Heat is usually insignificant, the formula for its calculation is complex (formula 17), it may be added later
 
@@ -218,7 +221,7 @@ class main:
 
         G = (self.impetus_of_igniter * self.mass_of_igniter) / ((self.ratio_of_specific_heats_for_igniter - 1) * self.adiabatic_flame_temperature)
 
-        self.temperature_of_propellant_gas = (A + B - C - D - E) / (F + G)
+        self.temperature_of_propellant_gas = (A + B - C - self.retardingLosses - E) / (F + G)
 
     def computeSpaceMeanPressure(self):
         """
@@ -238,7 +241,7 @@ class main:
         pass #TODO: Instructions unclear, pass intentionally left in place
 
     def writeOutComputedResults(self):
-        self.f.write("%08.8E %08.8E %08.8E %08.8E %08.8E %08.8E %08.8E \n" % (self.t, self.acceleration_of_projectile, self.velocity_of_projectile, self.displacement_of_projectile, self.space_mean_pressure,self.space_mean_pressure,self.space_mean_pressure))
+        self.f.write("%08.8E %08.8E %08.8E %08.8E %08.8E %08.8E %08.8E \n" % (self.t, self.acceleration_of_projectile, self.velocity_of_projectile, self.displacement_of_projectile, self.space_mean_pressure,self.base_pressure,self.breech_pressure))
 
 
     def interpolateForConditionsAtMuzzle(self):
