@@ -2,6 +2,8 @@ from collections import namedtuple
 from math import pi
 from scipy.constants import g as gravity
 
+PIDDUCK_KENT_CONSTANT = 1
+
 BarrelResistance = namedtuple('BarrelResistance', 'br trav')
 RecoilingPoint = namedtuple('RecoilingPoint', 'force time')
 BurningRate = namedtuple('BurningRate', 'exponent coefficient pressure')
@@ -74,8 +76,8 @@ class main:
                 self.computePropellantSurfaceAreas()
                 self.computeMassFractionsBurnedByIntegration()
             if (self.space_mean_pressure > self.retardingPressureByMeter(0)):
-                self.computeBreechPressure()
                 self.computeBasePressure()
+                self.computeBreechPressure()
                 self.interpolateForResistivePressure()
                 self.computeProjectileAcceleration()
                 self.computeProjectileVelocityByIntegration()
@@ -85,10 +87,10 @@ class main:
             self.computeSpaceMeanPressure()
             self.checkForAndStoreMaxPressureAndAssociatedConditions()
             self.writeOutComputedResults()
-            if not ('projectile has mooved'):
+            if not (self.displacement_of_projectile > 0.0):
                 if ('space mean pressure stopped increasing'):
                     break
-            if ('projectile reached gun muzzle'):
+            if (self.displacement_of_projectile > self.travel):
                 self.interpolateForConditionsAtMuzzle()
                 self.writeConditionsAtMaximumPressureAndAtMuzzle()
                 break
@@ -103,8 +105,8 @@ class main:
         self.velocity_of_projectile = 0.0
         self.acceleration_of_projectile = 0.0
         self.displacement_of_projectile = 0.0
-        self.f.write('  time           acc            vel            dis            mpress        pbase           pbrch\n')
-        self.f.write('   s              m/s^2          m/s            m              Pa            Pa              Pa \n')
+        self.f.write('  time           acc            vel            dis            mpress         pbase          pbrch\n')
+        self.f.write('   s              m/s^2          m/s            m              Pa             Pa             Pa \n')
 
 
     def initialPropellantSurfaceArea(self):
@@ -136,25 +138,48 @@ class main:
         for p in self.propellants:
             p.computeMassFraction(self.t)
 
-    def computeBreechPressure(self):
-        self.breech_pressure = 0
-        for p in self.propellants:
-            pass
-
     def computeBasePressure(self):
-        pass
+        sumOfMasses = 0
+        for p in self.propellants:
+            sumOfMasses = p.mass
+
+        self.base_pressure = self.space_mean_pressure / (
+                    1 + (sumOfMasses / (self.projectile_mass * PIDDUCK_KENT_CONSTANT)))
+
+    def computeBreechPressure(self):
+        """
+        Equation 28, it got ugly again so we did the A B C trick again.
+
+        :return:
+        """
+
+        AA = 0
+        AB = 0
+        CA = 0
+        for p in self.propellants:
+            AA += (p.mass * p.ratioOfSpecificHeats)
+            AB += (p.mass)
+            CA += (p.mass / self.projectile_mass)
+
+        A = AA / AB
+
+        B = 1 / (A - 1)
+
+        C = ((2 * B + 3) / PIDDUCK_KENT_CONSTANT) + ((2 * (B + 1)) / (CA))
+
+        self.breech_pressure = self.base_pressure / ((1 - (1/C)) ** (-B - 1))
 
     def interpolateForResistivePressure(self):
-        pass
+        self.resistive_pressure = self.retardingPressureByMeter(self.displacement_of_projectile)
 
     def computeProjectileAcceleration(self):
-        pass
+        self.acceleration_of_projectile = (self.boreArea * gravity * (self.base_pressure - self.gas_pressure_in_front_of_projectile - self.resistive_pressure)) / self.projectile_mass #F = MA BAYBEEE
 
     def computeProjectileVelocityByIntegration(self):
-        pass
+        self.velocity_of_projectile += (self.acceleration_of_projectile * self.t - self.acceleration_of_projectile * (self.t - self.time_step_sec))
 
     def computeProjectileDisplacementByIntegration(self):
-        self.displacement_of_projectile = self.displacement_of_projectile
+        self.displacement_of_projectile += (self.velocity_of_projectile * self.t - self.velocity_of_projectile * (self.t - self.time_step_sec))
 
     def computeVolumeAvailableForPropellantGas(self):
         volume_occupied_by_unburned_solid_propellant = 0
@@ -181,8 +206,7 @@ class main:
         CSum = 0
         for p in self.propellants:
             CSum = p.mass
-        pidduckKentConstant = 1 #TODO: Actually define this constant
-        C = (self.velocity_of_projectile ** 2 / (gravity * 2)) * (self.projectile_mass + CSum / pidduckKentConstant)
+        C = (self.velocity_of_projectile ** 2 / (gravity * 2)) * (self.projectile_mass + CSum / PIDDUCK_KENT_CONSTANT)
 
         D = - self.boreArea * self.retardingPressureByMeter(self.displacement_of_projectile) * self.displacement_of_projectile #TODO: We used a random integral here and are just guessing that there is no need to evaluate it
 
@@ -215,6 +239,7 @@ class main:
 
     def writeOutComputedResults(self):
         self.f.write("%08.8E %08.8E %08.8E %08.8E %08.8E %08.8E %08.8E \n" % (self.t, self.acceleration_of_projectile, self.velocity_of_projectile, self.displacement_of_projectile, self.space_mean_pressure,self.space_mean_pressure,self.space_mean_pressure))
+
 
     def interpolateForConditionsAtMuzzle(self):
         pass
